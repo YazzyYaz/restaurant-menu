@@ -1,14 +1,28 @@
 from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
+import cgi
+from contextlib import contextmanager
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine
+
+engine = create_engine("sqlite:///restaurantmenu.db") 
+Base.metadata.bind = engine
+DBSession = sessionmaker(bind=engine)
 
 class WebServerHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         try:
-            if self.path.endswith("/hello"):
-                self.send_response("200")
+            if self.path.endswith("/restaurants"):
+                self.send_response(200)
                 self.send_header('Content-Type', 'text/html')
                 self.end_headers()
+                DBSession = sessionmaker(bind=engine)
                 output = ""
-                output += "<html><body>Hello!</body></html>"
+                output += "<html><body>"
+                output += "Hello!"
+                output += """<form method='POST' enctype='multipart/form-data' action='hello'>
+   	        	  <h2>What would you like me to say?</h2><input name='message' type='text'>
+                	  <input type='submit' value='Submit'></form>"""
+                output += "</body></html>"
                 self.wfile.write(output)
                 print(output)
                 return
@@ -17,7 +31,24 @@ class WebServerHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         try:
-            pass
+            self.send_response(301)
+            self.end_headers() 
+            ctype, pdict = cgi.parse_header(self.headers.getheader('content-type'))
+            if ctype == "multipart/form-data":
+                fields = cgi.parse_multipart(self.rfile, pdict)
+                messagecontent = fields.get('message')
+            output = ""
+            output += "<html><body>"
+            output += "<h2>Ok, How about this?</h2>"
+            output += "<h1> {} </h1>".format(messagecontent[0])
+            output += """<form method='POST' enctype='multipart/form-data' action='hello'>
+            	      <h2>What would you like me to say?</h2><input name='message' type='text'>
+                      <input type='submit' value='Submit'></form>"""
+            output += "</body></html>"
+            self.wfile.write(output)
+            print(output)
+            
+
         except:
             pass
 
@@ -30,6 +61,18 @@ def main():
     except KeyboardInterrupt:
         print("^C Entered, stopping web server...")
         server.socket.close()
+
+@contextmanager
+def session_scope():
+    session = DBSession()
+    try:
+        yield session
+	session.commit()
+    except:
+        session.rollback()
+        raise
+    finally:
+        session.close()
 
 if __name__ == "__main__":
     main()
